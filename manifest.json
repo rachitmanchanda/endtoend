@@ -1,0 +1,13 @@
+{
+  "manifest_version": 3,
+  "name": "Design Post-Handoff Tool",
+  "version": "1.0",
+  "description": "A tool for designers to annotate staging links and communicate feedback to developers.",
+  "permissions": ["activeTab", "scripting"],
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"], 
+      "js": ["content.js"]
+    }
+  ]
+}

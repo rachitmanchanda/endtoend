@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Inspect & Feedback Plugin</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="plugin-container">
+    <button id="close-plugin">Close Plugin</button>
+    <h2 id="element-name">elementname.scs</h2>
+    <pre id="css-code">
+      <code>
+        /* CSS properties will be shown here like code */
+        width: 100px;
+        height: 100px;
+        color: rgba(0, 0, 0, 1);
+        /* etc */
+      </code>
+    </pre>
+    <textarea id="feedback" placeholder="Write feedback..."></textarea>
+  </div>
+  <script src="content.js"></script>
+</body>
+</html>
