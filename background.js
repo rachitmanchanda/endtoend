@@ -1,8 +1,21 @@
-chrome.action.onClicked.addListener(() => {
-    chrome.windows.create({
-        url: 'popup.html',
-        type: 'popup',
-        width: 400,
-        height: 600
+chrome.action.onClicked.addListener((tab) => {
+  chrome.scripting.executeScript({
+    target: { tabId: tab.id },
+    files: ['content.js']
+  });
+});
+
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.type === 'TAKE_SCREENSHOT') {
+    chrome.tabs.captureVisibleTab(null, { format: 'png' }, (dataUrl) => {
+      chrome.tabs.sendMessage(sender.tab.id, {
+        type: 'SCREENSHOT_TAKEN',
+        screenshotUrl: dataUrl,
+        feedback: request.feedback,
+        x: request.x,
+        y: request.y
+      });
     });
+    return true;
+  }
 });
