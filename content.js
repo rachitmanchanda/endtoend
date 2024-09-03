@@ -1,8 +1,11 @@
-// Inject Tailwind CSS into the page
-const tailwindLink = document.createElement('link');
-tailwindLink.rel = 'stylesheet';
-tailwindLink.href = 'https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css';
-document.head.appendChild(tailwindLink);
+// Check if Tailwind CSS is already loaded
+if (!document.querySelector('link[href*="tailwindcss"]')) {
+    // Inject Tailwind CSS into the page
+    const tailwindLink = document.createElement('link');
+    tailwindLink.rel = 'stylesheet';
+    tailwindLink.href = 'https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css';
+    document.head.appendChild(tailwindLink);
+}
 
 // Mode state
 let isInspectMode = false;
@@ -13,6 +16,44 @@ bottomPanel.id = 'inspectPluginElements';
 bottomPanel.classList.add('fixed', 'bottom-0', 'left-1/2', 'transform', '-translate-x-1/2', 'bg-white', 'text-black', 'shadow-lg', 'p-3', 'rounded-full', 'flex', 'justify-center', 'items-center', 'space-x-4');
 bottomPanel.style.zIndex = '10000';
 document.body.appendChild(bottomPanel);
+
+// Add these lines to set default light theme and improve font visibility
+const style = document.createElement('style');
+style.textContent = `
+    #inspectPluginElements, #inspect-bounding-box, #feedbackText {
+        font-weight: 500 !important;
+        background-color: rgba(243, 244, 246, 0.8) !important;
+        color: #000000 !important;
+        backdrop-filter: blur(5px) !important;
+        -webkit-backdrop-filter: blur(5px) !important;
+    }
+    .highlight-element {
+        position: relative;
+    }
+    .highlight-element::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        border: 2px solid red;
+        pointer-events: none;
+        z-index: 10000;
+    }
+    .selected-element::after {
+        border: 2px solid blue;
+    }
+    #screenshotBtn {
+        background: linear-gradient(to right, #000000, #333333) !important;
+        color: white !important;
+        transition: all 0.3s ease !important;
+    }
+    #screenshotBtn:hover {
+        background: linear-gradient(to right, #333333, #000000) !important;
+    }
+`;
+document.head.appendChild(style);
 
 // Toggle Inspect Mode Button
 const inspectToggleButton = document.createElement('button');
@@ -34,6 +75,9 @@ dropdown.id = 'inspectPluginElements';
 dropdown.classList.add('fixed', 'bg-white', 'p-4', 'rounded', 'shadow-lg', 'z-50', 'hidden', 'font-medium');
 document.body.appendChild(dropdown);
 
+// Add a variable to keep track of the currently selected element
+let selectedElement = null;
+
 // Function to toggle inspect mode
 function toggleInspectMode() {
     isInspectMode = !isInspectMode;
@@ -49,8 +93,10 @@ function toggleInspectMode() {
         document.removeEventListener('mouseout', handleMouseOut);
         document.removeEventListener('click', handleElementClick, true);
         dropdown.classList.add('hidden');
-        const boundingBox = document.getElementById('inspect-bounding-box');
-        if (boundingBox) boundingBox.remove();
+        // Remove highlight from all elements except the selected one
+        document.querySelectorAll('.highlight-element:not(.selected-element)').forEach(el => {
+            el.classList.remove('highlight-element');
+        });
     }
 }
 
@@ -60,23 +106,16 @@ function handleHover(event) {
     event.preventDefault();
     event.stopPropagation();
     const element = event.target;
-    const rect = element.getBoundingClientRect();
-
-    // Create or update bounding box
-    let boundingBox = document.getElementById('inspect-bounding-box');
-    if (!boundingBox) {
-        boundingBox = document.createElement('div');
-        boundingBox.id = 'inspect-bounding-box';
-        document.body.appendChild(boundingBox);
+    
+    // Remove highlight from all elements except the selected one
+    document.querySelectorAll('.highlight-element:not(.selected-element)').forEach(el => {
+        el.classList.remove('highlight-element');
+    });
+    
+    // Add highlight to current element if it's not the selected one
+    if (element !== selectedElement) {
+        element.classList.add('highlight-element');
     }
-    boundingBox.style.position = 'absolute';
-    boundingBox.style.border = '2px solid red';
-    boundingBox.style.pointerEvents = 'none';
-    boundingBox.style.zIndex = '10000';
-    boundingBox.style.left = `${rect.left + window.scrollX}px`;
-    boundingBox.style.top = `${rect.top + window.scrollY}px`;
-    boundingBox.style.width = `${rect.width}px`;
-    boundingBox.style.height = `${rect.height}px`;
 }
 
 // Function to handle element click
@@ -85,6 +124,16 @@ function handleElementClick(event) {
     event.preventDefault();
     event.stopPropagation();
     const element = event.target;
+
+    // Remove previous selection
+    if (selectedElement) {
+        selectedElement.classList.remove('selected-element');
+    }
+
+    // Set new selection
+    selectedElement = element;
+    element.classList.add('selected-element');
+
     const rect = element.getBoundingClientRect();
     updateFlyoutMenu(element, rect);
 }
@@ -94,26 +143,48 @@ function updateFlyoutMenu(element, rect) {
     const computedStyles = window.getComputedStyle(element);
     
     dropdown.innerHTML = `
-        <h3 class="text-lg font-bold mb-2">Element: ${element.tagName.toLowerCase()}</h3>
+        <h3 class="text-lg font-bold mb-2 text-black">Element: ${element.tagName.toLowerCase()}</h3>
         <div class="max-h-60 overflow-y-auto">
-            <pre class="text-sm bg-gray-100 p-2 rounded font-medium"><code>${getFormattedCSS(computedStyles)}</code></pre>
+            <pre class="text-sm bg-gray-100 p-2 rounded font-medium text-black"><code>${getFormattedCSS(computedStyles)}</code></pre>
         </div>
-        <textarea id="feedbackText" class="w-full mt-4 p-2 border rounded font-medium" placeholder="Write feedback..."></textarea>
-        <button id="screenshotBtn" class="mt-4 bg-green-500 text-white rounded px-4 py-2 hover:bg-green-600 font-medium">Take Screenshot</button>
+        <textarea id="feedbackText" class="w-full mt-4 p-2 border rounded font-medium bg-gray-100 text-black" placeholder="Write feedback..."></textarea>
+        <button id="screenshotBtn" class="w-full mt-4 text-white rounded px-4 py-2 font-medium">Take Screenshot</button>
     `;
 
-    dropdown.style.left = `${rect.right + window.scrollX + 10}px`;
-    dropdown.style.top = `${rect.top + window.scrollY}px`;
     dropdown.classList.remove('hidden');
+    dropdown.classList.add('bg-opacity-80', 'backdrop-filter', 'backdrop-blur-sm');
+
+    // Calculate available space
+    const viewportWidth = window.innerWidth;
+    const viewportHeight = window.innerHeight;
+    const dropdownWidth = dropdown.offsetWidth;
+    const dropdownHeight = dropdown.offsetHeight;
+
+    // Calculate initial position
+    let left = rect.right + window.scrollX + 10;
+    let top = rect.top + window.scrollY;
+
+    // Adjust horizontal position if needed
+    if (left + dropdownWidth > viewportWidth) {
+        left = Math.max(0, viewportWidth - dropdownWidth - 10);
+    }
+
+    // Adjust vertical position if needed
+    if (top + dropdownHeight > viewportHeight) {
+        top = Math.max(0, viewportHeight - dropdownHeight - 10);
+    }
+
+    // Apply the calculated position
+    dropdown.style.left = `${left}px`;
+    dropdown.style.top = `${top}px`;
 
     document.getElementById('screenshotBtn').addEventListener('click', () => takeScreenshot(element));
 }
 
 // Function to handle mouse out
 function handleMouseOut(event) {
-    if (!event.target.closest('#inspectPluginElements')) {
-        const boundingBox = document.getElementById('inspect-bounding-box');
-        if (boundingBox) boundingBox.remove();
+    if (!event.target.closest('#inspectPluginElements') && event.target !== selectedElement) {
+        event.target.classList.remove('highlight-element');
     }
 }
 
@@ -157,6 +228,8 @@ function takeScreenshot(element) {
                 });
         }
     });
+    // Keep the bounding box visible after taking the screenshot
+    element.classList.add('selected-element');
 }
 
 // Function to close the plugin
@@ -169,12 +242,3 @@ function closePlugin() {
     const boundingBox = document.getElementById('inspect-bounding-box');
     if (boundingBox) boundingBox.remove();
 }
-
-// Add styles for highlight
-const style = document.createElement('style');
-style.textContent = `
-    .highlight-element {
-        outline: 2px solid red !important;
-    }
-`;
-document.head.appendChild(style);
