@@ -11,5 +11,9 @@
   },
   "action": {
     "default_title": "Take Screenshot and Inspect"
-  }
+  },
+  "web_accessible_resources": [{
+    "resources": ["img/logo.png"],
+    "matches": ["<all_urls>"]
+  }]
 }

@@ -13,12 +13,23 @@ let isInspectMode = false;
 // Create a bottom floating panel for controls
 const bottomPanel = document.createElement('div');
 bottomPanel.id = 'inspectPluginElements';
-bottomPanel.classList.add('fixed', 'bottom-0', 'left-1/2', 'transform', '-translate-x-1/2', 'bg-white', 'text-black', 'shadow-lg', 'p-3', 'rounded-full', 'flex', 'justify-center', 'items-center', 'space-x-4');
+bottomPanel.classList.add('fixed', 'left-1/2', 'transform', '-translate-x-1/2', 'bg-white', 'text-black', 'shadow-lg', 'rounded-full', 'flex', 'justify-center', 'items-center', 'space-x-4');
 bottomPanel.style.zIndex = '10000';
+bottomPanel.style.padding = '8px 24px'; // Adjust vertical padding to accommodate larger logo
+bottomPanel.style.bottom = '32px'; // Add 32px margin from the bottom
+
+// Add logo to the bottom panel
+const logo = document.createElement('img');
+logo.src = chrome.runtime.getURL('img/logo.png');
+logo.alt = 'Plugin Logo';
+logo.classList.add('w-10', 'h-10', 'rounded-full', 'mr-3'); // 40x40px logo with right margin
+bottomPanel.insertBefore(logo, bottomPanel.firstChild);
+
 document.body.appendChild(bottomPanel);
 
 // Add these lines to set default light theme and improve font visibility
 const style = document.createElement('style');
+style.id = 'inspect-plugin-styles';
 style.textContent = `
     #inspectPluginElements, #inspect-bounding-box, #feedbackText {
         font-weight: 500 !important;
@@ -58,14 +69,14 @@ document.head.appendChild(style);
 // Toggle Inspect Mode Button
 const inspectToggleButton = document.createElement('button');
 inspectToggleButton.innerText = 'Enable Inspect';
-inspectToggleButton.classList.add('text-white', 'bg-blue-600', 'rounded', 'px-4', 'py-2', 'hover:bg-blue-700', 'focus:outline-none', 'font-medium');
+inspectToggleButton.classList.add('text-white', 'bg-blue-600', 'rounded-full', 'px-4', 'py-2', 'hover:bg-blue-700', 'focus:outline-none', 'font-medium');
 inspectToggleButton.onclick = toggleInspectMode;
 bottomPanel.appendChild(inspectToggleButton);
 
 // Close Plugin Button
 const closePluginButton = document.createElement('button');
 closePluginButton.innerText = 'Close Plugin';
-closePluginButton.classList.add('text-white', 'bg-red-600', 'rounded', 'px-4', 'py-2', 'hover:bg-red-700', 'focus:outline-none', 'font-medium');
+closePluginButton.classList.add('text-white', 'bg-red-600', 'rounded-full', 'px-4', 'py-2', 'hover:bg-red-700', 'focus:outline-none', 'font-medium');
 closePluginButton.onclick = closePlugin;
 bottomPanel.appendChild(closePluginButton);
 
@@ -201,33 +212,75 @@ function getFormattedCSS(styles) {
     return result;
 }
 
+// Function to add logo to screenshot
+function addLogoToScreenshot(screenshotUrl, callback) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    const screenshot = new Image();
+    const logo = new Image();
+
+    screenshot.onload = function() {
+        canvas.width = screenshot.width;
+        canvas.height = screenshot.height;
+        ctx.drawImage(screenshot, 0, 0);
+
+        logo.onload = function() {
+            const logoSize = 40; // Size of the logo (40x40 pixels)
+            const padding = 10; // Padding from the corner
+            const x = canvas.width - logoSize - padding;
+            const y = canvas.height - logoSize - padding;
+            
+            // Set global alpha for transparency
+            ctx.globalAlpha = 0.2; // 20% opacity
+            ctx.drawImage(logo, x, y, logoSize, logoSize);
+            // Reset global alpha
+            ctx.globalAlpha = 1.0;
+
+            callback(canvas.toDataURL('image/png'));
+        };
+        logo.src = chrome.runtime.getURL('img/logo.png');
+    };
+    screenshot.src = screenshotUrl;
+}
+
 // Function to take a screenshot
 function takeScreenshot(element) {
     const feedback = document.getElementById('feedbackText').value;
     const rect = element.getBoundingClientRect();
 
-    chrome.runtime.sendMessage({ 
-        action: 'takeScreenshot',
-        feedback: feedback,
-        elementInfo: {
-            tag: element.tagName.toLowerCase(),
-            left: rect.left,
-            top: rect.top,
-            width: rect.width,
-            height: rect.height
-        }
-    }, (response) => {
-        if (response && response.screenshotUrl) {
-            // Copy screenshot to clipboard
-            fetch(response.screenshotUrl)
-                .then(res => res.blob())
-                .then(blob => {
-                    const item = new ClipboardItem({ "image/png": blob });
-                    navigator.clipboard.write([item]);
-                    alert('Screenshot copied to clipboard!');
+    // Hide only the bottom panel
+    bottomPanel.style.display = 'none';
+
+    // Small delay to ensure the panel is hidden before screenshot
+    setTimeout(() => {
+        chrome.runtime.sendMessage({ 
+            action: 'takeScreenshot',
+            feedback: feedback,
+            elementInfo: {
+                tag: element.tagName.toLowerCase(),
+                left: rect.left,
+                top: rect.top,
+                width: rect.width,
+                height: rect.height
+            }
+        }, (response) => {
+            if (response && response.screenshotUrl) {
+                addLogoToScreenshot(response.screenshotUrl, (newScreenshotUrl) => {
+                    // Copy screenshot to clipboard
+                    fetch(newScreenshotUrl)
+                        .then(res => res.blob())
+                        .then(blob => {
+                            const item = new ClipboardItem({ "image/png": blob });
+                            navigator.clipboard.write([item]);
+                            alert('Screenshot copied to clipboard!');
+                        });
                 });
-        }
-    });
+            }
+            // Show the bottom panel again
+            bottomPanel.style.display = 'flex';
+        });
+    }, 50); // 50ms delay, adjust if needed
+
     // Keep the bounding box visible after taking the screenshot
     element.classList.add('selected-element');
 }
@@ -239,6 +292,20 @@ function closePlugin() {
     document.removeEventListener('mouseover', handleHover);
     document.removeEventListener('mouseout', handleMouseOut);
     document.removeEventListener('click', handleElementClick, true);
+    
+    // Remove all highlight and selected element classes
+    document.querySelectorAll('.highlight-element, .selected-element').forEach(el => {
+        el.classList.remove('highlight-element', 'selected-element');
+    });
+
+    // Remove the bounding box if it exists
     const boundingBox = document.getElementById('inspect-bounding-box');
     if (boundingBox) boundingBox.remove();
+
+    // Reset the inspect mode
+    isInspectMode = false;
+
+    // Remove any styles we've added
+    const addedStyles = document.getElementById('inspect-plugin-styles');
+    if (addedStyles) addedStyles.remove();
 }
